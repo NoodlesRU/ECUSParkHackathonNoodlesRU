@@ -1,0 +1,64 @@
+.result-card {
+  background: #fff;
+  border: 1px solid #ddd;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.action-buttons > div {
+  margin: 0;
+}
+
+.highlight {
+  background-color: yellow;
+  font-weight: bold;
+  cursor: help;
+}
+
+.spinner {
+  font-style: italic;
+  margin: 1rem 0;
+}
+
+.warning-box {
+  background: #fff8e1;
+  border: 1px solid #f0c36d;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.warning-meta {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  color: #6b4f00;
+}
+
+.help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  margin-left: 0.4rem;
+  border: 1px solid #7a7a7a;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  line-height: 1;
+  color: #4f4f4f;
+  background: #f7f7f7;
+  cursor: help;
+  vertical-align: middle;
+}
+
+.clipboard-btn-active {
+  background: #0a66c2;
+  border-color: #0a66c2;
+  color: #ffffff;
+}
