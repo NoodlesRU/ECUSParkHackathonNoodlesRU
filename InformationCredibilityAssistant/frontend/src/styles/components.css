@@ -1,3 +1,67 @@
+.app-container {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.workspace-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "analysis input";
+  gap: 1rem;
+  align-items: start;
+}
+
+.input-panel {
+  grid-area: input;
+}
+
+.analysis-panel {
+  grid-area: analysis;
+}
+
+.workspace-panel {
+  background: #ffffff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 1rem;
+  min-height: 620px;
+}
+
+.panel-header h2 {
+  margin: 0;
+}
+
+.panel-header p {
+  margin: 0.4rem 0 0.8rem;
+  color: #5f5f5f;
+  font-size: 0.92rem;
+}
+
+.text-input-container {
+  margin-bottom: 0.75rem;
+}
+
+.text-input {
+  width: 100%;
+  min-height: 430px;
+  resize: vertical;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  padding: 0.75rem;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+
+.analysis-empty {
+  margin-top: 0.5rem;
+  border: 1px dashed #b7c0cb;
+  border-radius: 8px;
+  padding: 1rem;
+  color: #4f5d70;
+  background: #f8fbff;
+}
+
 .result-card {
   background: #fff;
   border: 1px solid #ddd;
@@ -184,4 +248,21 @@
   background: #0a66c2;
   border-color: #0a66c2;
   color: #ffffff;
+}
+
+@media (max-width: 980px) {
+  .workspace-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "input"
+      "analysis";
+  }
+
+  .workspace-panel {
+    min-height: auto;
+  }
+
+  .text-input {
+    min-height: 260px;
+  }
 }
