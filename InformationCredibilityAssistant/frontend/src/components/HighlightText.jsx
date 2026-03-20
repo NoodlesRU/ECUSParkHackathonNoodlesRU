@@ -10,10 +10,17 @@ export default function HighlightText({ text, highlights }) {
 
   highlights.forEach((hl, index) => {
     const { start, end } = hl;
+    const reason = (hl?.reason || "Flagged for potential bias or unverifiable language.").trim();
     // Append untouched text before each highlighted segment.
     if (lastIndex < start) parts.push(text.slice(lastIndex, start));
     parts.push(
-      <span key={index} className="highlight" title={hl.reason}>
+      <span
+        key={index}
+        className="highlight"
+        title={reason}
+        data-reason={reason}
+        aria-label={`Highlight reason: ${reason}`}
+      >
         {text.slice(start, end)}
       </span>
     );

@@ -182,6 +182,41 @@ function heuristicKeyClaims(text) {
   return [...new Set(source)].slice(0, 4);
 }
 
+// Assign a human-readable reason to each highlighted phrase.
+function inferHighlightReason(phrase, verifyItems = [], signals = []) {
+  const value = String(phrase || "").trim();
+  const lower = value.toLowerCase();
+
+  if (!value) return "Potentially important claim to review.";
+
+  const appearsInVerifyList = verifyItems.some(item => String(item || "").toLowerCase().includes(lower));
+  if (appearsInVerifyList || /\b(verify|unclear|alleg|claimed|reported|revealed|said|told)\b/i.test(value)) {
+    return "Contains a claim or uncertainty that should be independently verified.";
+  }
+
+  if (/\b(blockbuster|shattered|hagiography|outrage|disaster|massive|stunning)\b/i.test(value)) {
+    return "Uses emotionally loaded language that may introduce bias.";
+  }
+
+  if (/\b(officials|sources|according to|one of the officials)\b/i.test(value)) {
+    return "Relies on attribution that may be vague or not fully sourced.";
+  }
+
+  if (/\b\d{4}\b|\b\d+\b|\b(first|second|third|week|month|year)\b/i.test(value)) {
+    return "Contains specific factual details that can be fact-checked.";
+  }
+
+  const mentionsCredibilitySignal = signals.some(item => {
+    const itemLower = String(item || "").toLowerCase();
+    return itemLower.includes("source") || itemLower.includes("report") || itemLower.includes("quotation");
+  });
+  if (mentionsCredibilitySignal) {
+    return "Highlights source-related language worth checking for evidence and context.";
+  }
+
+  return "Potentially important claim to review for evidence and context.";
+}
+
 // Trim long submissions at sentence boundaries so output stays coherent.
 function capAnalyzedText(inputText, maxChars) {
   const safeText = String(inputText || "");
@@ -213,6 +248,102 @@ function capAnalyzedText(inputText, maxChars) {
     stopIndex,
     totalChars: safeText.length,
     stopPreview
+  };
+}
+
+function deriveBiasLevel(text, flags = []) {
+  const safeFlags = Array.isArray(flags) ? flags : [];
+  if (!safeFlags.length) {
+    return { level: "low", flaggedCount: 0, severeCount: 0 };
+  }
+
+  const severeCount = safeFlags.filter(flag =>
+    /emotionally loaded|unsupported|uncertainty|vague|bias/i.test(String(flag?.reason || ""))
+  ).length;
+  const flaggedCount = safeFlags.length;
+
+  if (severeCount >= 2 || flaggedCount >= 6) {
+    return { level: "high", flaggedCount, severeCount };
+  }
+  if (severeCount >= 1 || flaggedCount >= 3) {
+    return { level: "medium", flaggedCount, severeCount };
+  }
+  return { level: "low", flaggedCount, severeCount };
+}
+
+// Score credibility using simple, explainable heuristics.
+function computeCredibilityScore({
+  signals = [],
+  verifyItems = [],
+  keyClaims = [],
+  text = "",
+  highlights = [],
+  biasLevel = "low"
+}) {
+  const safeSignals = Array.isArray(signals) ? signals : [];
+  const safeVerifyItems = Array.isArray(verifyItems) ? verifyItems : [];
+  const safeKeyClaims = Array.isArray(keyClaims) ? keyClaims : [];
+  const safeHighlights = Array.isArray(highlights) ? highlights : [];
+
+  const lowerText = String(text || "").toLowerCase();
+  const uncertaintyCategories = [
+    { name: "allegation", pattern: /\balleg(ed|ation|ations)?\b/ },
+    { name: "claim", pattern: /\bclaims?\b/ },
+    { name: "reportedly", pattern: /\breportedly\b/ },
+    { name: "unclear", pattern: /\bunclear\b/ },
+    { name: "attribution", pattern: /\baccording to\b/ },
+    { name: "anonymous-source", pattern: /\b(sources?|officials?)\b/ }
+  ];
+  const matchedUncertaintyCategories = uncertaintyCategories.filter(item => item.pattern.test(lowerText));
+
+  const severeHighlightCount = safeHighlights.filter(flag =>
+    /emotionally loaded|unsupported|uncertainty|vague|bias/i.test(String(flag?.reason || ""))
+  ).length;
+  const regularHighlightCount = Math.max(0, safeHighlights.length - severeHighlightCount);
+
+  // New formula: start neutral and move score up/down with evidence quality.
+  const baseline = 50;
+  const evidenceBoost = Math.min(32, safeKeyClaims.length * 8) + Math.min(30, safeSignals.length * 6);
+  const verificationPenalty = Math.min(45, safeVerifyItems.length * 9);
+  const highlightPenalty = Math.min(24, severeHighlightCount * 4 + regularHighlightCount * 2);
+  const uncertaintyPenalty = Math.min(12, matchedUncertaintyCategories.length * 2);
+  const biasPenalty = biasLevel === "high" ? 8 : biasLevel === "medium" ? 4 : 0;
+  const sparseEvidencePenalty = safeKeyClaims.length + safeSignals.length <= 2 ? 12 : 0;
+
+  const rawScore =
+    baseline +
+    evidenceBoost -
+    verificationPenalty -
+    highlightPenalty -
+    uncertaintyPenalty -
+    biasPenalty -
+    sparseEvidencePenalty;
+
+  const biasCap = biasLevel === "high" ? 59 : biasLevel === "medium" ? 79 : 100;
+  const score = Math.max(0, Math.min(biasCap, Math.min(100, rawScore)));
+
+  let level = "high";
+  if (score < 50) level = "low";
+  else if (score < 80) level = "medium";
+
+  return {
+    score,
+    level,
+    max: 100,
+    factors: {
+      baseline,
+      signals: safeSignals.length,
+      verifyItems: safeVerifyItems.length,
+      keyClaims: safeKeyClaims.length,
+      evidenceBoost,
+      verificationPenalty,
+      highlightPenalty,
+      uncertaintyPenalty,
+      biasPenalty,
+      sparseEvidencePenalty,
+      severeHighlightCount,
+      biasCap
+    }
   };
 }
 
@@ -326,7 +457,10 @@ Article:
       : [...fallbackVerify, ...fallbackKeyClaims].slice(0, 8);
 
     const highlightedPhrases = highlightedPhrasesSeed
-      .map(phrase => ({ phrase, reason: "AI flagged" }))
+      .map(phrase => ({
+        phrase,
+        reason: inferHighlightReason(phrase, fallbackVerify, signals)
+      }))
       .filter(p => p.phrase);
 
     // Build sentence-level flags used by the frontend highlighter component.
@@ -342,11 +476,24 @@ Article:
       );
     }
 
+    const biasStats = deriveBiasLevel(highlightedText.text, highlightedText.flags);
+
+    const credibility = computeCredibilityScore({
+      signals,
+      verifyItems: fallbackVerify,
+      keyClaims: fallbackKeyClaims,
+      text: analysisText,
+      highlights: highlightedText.flags,
+      biasLevel: biasStats.level
+    });
+
     res.json({
       summary: fallbackSummary.length ? fallbackSummary : ["Model output could not be fully structured. Review source text directly."],
       keyClaims: fallbackKeyClaims,
       signals,
       verifyItems: fallbackVerify,
+      credibility,
+      biasLevel: biasStats.level,
       highlightedText,
       warnings,
       analysisLimit: {

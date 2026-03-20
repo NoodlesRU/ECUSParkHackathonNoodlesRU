@@ -1,18 +1,32 @@
 import React from 'react';
 
-export default function BiasIndicator({ level }) {
+export default function BiasIndicator({ level, score }) {
   // level can be: 'low', 'medium', 'high'
   const getIndicatorStyle = () => {
-    switch (level?.toLowerCase()) {
-      case 'low':
-        return { color: '#4CAF50', bgColor: '#E8F5E9' };
-      case 'medium':
-        return { color: '#FF9800', bgColor: '#FFF3E0' };
-      case 'high':
-        return { color: '#F44336', bgColor: '#FFEBEE' };
-      default:
-        return { color: '#757575', bgColor: '#F5F5F5' };
+    if (level?.toLowerCase() === 'low') {
+      return { color: '#4CAF50', bgColor: '#E8F5E9' };
     }
+
+    const levelSeverity = level?.toLowerCase() === 'high'
+      ? 2
+      : level?.toLowerCase() === 'medium'
+        ? 1
+        : -1;
+
+    const scoreSeverity = Number.isFinite(score)
+      ? score < 50
+        ? 2
+        : score < 80
+          ? 1
+          : 0
+      : -1;
+
+    const severity = Math.max(levelSeverity, scoreSeverity);
+
+    if (severity === 2) return { color: '#F44336', bgColor: '#FFEBEE' };
+    if (severity === 1) return { color: '#FF9800', bgColor: '#FFF3E0' };
+    if (severity === 0) return { color: '#4CAF50', bgColor: '#E8F5E9' };
+    return { color: '#757575', bgColor: '#F5F5F5' };
   };
 
   const style = getIndicatorStyle();
